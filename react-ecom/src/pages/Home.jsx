@@ -1,44 +1,99 @@
-import React, { useState, useEffect } from 'react'
-import axios from 'axios'
-import { Box, Container, HStack } from '@chakra-ui/react'
+import React, { useState, useEffect } from 'react';
+import axios from 'axios';
+import { Box, Select, SimpleGrid, Spinner, Text, useToast } from '@chakra-ui/react';
+import ProductCard from '../component/ProductCard';
+import { useSearchParams } from 'react-router-dom';
 
+const HomePage = () => {
+  const [allProducts, setAllProducts] = useState([]);
+  const [products, setProducts] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const toast = useToast();
 
-const Home = () => {
-    const [products, setProducts] = useState([])
-    const [isLoading, setIsLoading] = useState(false)
-    const [error, setError] = useState(false)
-    const [searchParams, setSearchParams] = useState([])
+  useEffect(() => {
+    const fetchProducts = async () => {
+      try {
+        const response = await axios.get('https://dbioz2ek0e.execute-api.ap-south-1.amazonaws.com/mockapi/get-products');
+        setAllProducts(response.data.data);
+        //setProducts(response.data.data);
+      } catch (error) {
+        setError(error);
+        toast({
+          title: "Error loading products.",
+          description: "There was an error loading the products.",
+          status: "error",
+          duration: 3000,
+          isClosable: true,
+        });
+      } finally {
+        setIsLoading(false);
+      }
+    };
 
-    useEffect(() => {
-        setIsLoading(true)
-        const fetchProducts = async () => {
-            try {
-                const response = await axios.get("https://dbioz2ek0e.execute-api.ap-south-1.amazonaws.com/mockapi/get-products")
-                console.log(response.data.data)
-                setProducts(response?.data?.data)
-                setIsLoading(false)
-            } catch (error) {
-                setError(error)
-                console.log(error)
-                setIsLoading(false)
-            }
-        }
-        fetchProducts()
-    }, [])
+    fetchProducts();
+  }, [toast]);
 
-    return (
-        <Box>
-            {products.map((ele) => (
-                <Box>
-                    <img src= {ele.image} alt="" />
-                    Title: {ele.title}
-                    Price: {ele.price}
-                </Box>
-            ))}
+  const handleSortChange = (e) => {
+    const sort = e.target.value;
+    searchParams.set('sort', sort);
+    setSearchParams(searchParams);
+  };
 
+  const handleFilterChange = (e) => {
+    const filter = e.target.value;
+    console.log(filter)
+    searchParams.set('filter', filter);
+    setSearchParams(searchParams);
+    console.log(searchParams)
+  };
 
-        </Box>
-    )
-}
+  useEffect(() => {
+    const sort = searchParams.get('sort');
+    const filter = searchParams.get('filter');
 
-export default Home
+    let filteredProducts = [...allProducts];
+    if (filter) {
+      filteredProducts = filteredProducts.filter(product => product.category === filter);
+    }
+    if (sort) {
+      filteredProducts.sort((a, b) => (sort === 'ascending' ? a.price - b.price : b.price - a.price));
+    }
+
+    setProducts(filteredProducts);
+  }, [searchParams, allProducts]);
+
+  if (isLoading) {
+    return <Spinner />;
+  }
+
+  if (error) {
+    return <Text>Error loading products.</Text>;
+  }
+
+  return (
+    <Box>
+      <Box display="flex" justifyContent="space-between" mb={4}>
+        <Select placeholder="Sort by Price" onChange={handleSortChange} value={searchParams.get('sort') || ''}>
+          <option value="ascending">Low-to-high</option>
+          <option value="descending">High-to-Low</option>
+        </Select>
+        <Select placeholder="Filter by Category" onChange={handleFilterChange} value={searchParams.get('filter') || ''}>
+          <option value="Men">Men</option>
+          <option value="Women">Women</option>
+          <option value="Kids">Kids</option>
+          <option value="Home Decor">Home Decor</option>
+        </Select>
+      </Box>
+      <SimpleGrid columns={{ sm: 1, md: 2, lg: 3 }} spacing={5}>
+        {products.map(product => (
+          <ProductCard key={product.id} product={product} />
+        ))}
+      </SimpleGrid>
+    </Box>
+  );
+};
+
+export default HomePage;
+
